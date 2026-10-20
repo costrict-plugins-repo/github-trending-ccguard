@@ -1,0 +1,136 @@
+const std = @import("std");
+const evaluator = @import("../evaluator.zig");
+const evaluate = evaluator.evaluate;
+
+test "block pip install" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install requests" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block npm install -g" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "npm install -g typescript" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block cargo install" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "cargo install ripgrep" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block brew install" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "brew install wget" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block gem install" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "gem install rails" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block go install" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "go install golang.org/x/tools/gopls@latest" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "allow pip install -r requirements" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install -r requirements.txt" } });
+    try std.testing.expectEqual(.allow, r.decision);
+}
+
+test "allow pip install -e ." {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install -e ." } });
+    try std.testing.expectEqual(.allow, r.decision);
+}
+
+test "block pip install evil with -r appended" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install evil-package -r requirements.txt" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block pip3 install malware with -r /dev/null" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip3 install malware -r /dev/null" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block pip install evil chained with legitimate" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install -r requirements.txt && pip install evil-package" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block pip install evil before -r flag" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install evil-package && pip install -r requirements.txt" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block pip install --requirement with extra package" {
+    // pip install --requirement req.txt evil-package installs BOTH
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install --requirement requirements.txt evil-package" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block pip install -r with extra package" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install -r requirements.txt evil-package" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block pip install -e with extra package" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install -e . evil-package" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "allow pip install --requirement only" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install --requirement requirements.txt" } });
+    try std.testing.expectEqual(.allow, r.decision);
+}
+
+test "allow pip install -r with multiple flags" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pip install -r requirements.txt --no-cache-dir --quiet" } });
+    try std.testing.expectEqual(.allow, r.decision);
+}
+
+// --- deno/bun/pipx global install ---
+
+test "block deno install -g" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "deno install -g jsr:@std/http/file-server" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block deno install --global" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "deno install --global npm:cowsay" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "allow deno install local" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "deno install" } });
+    try std.testing.expectEqual(.allow, r.decision);
+}
+
+test "block bun install -g" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "bun install -g typescript" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block bun add -g" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "bun add -g prettier" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "block bun install --global" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "bun install --global eslint" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
+
+test "allow bun install local" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "bun install" } });
+    try std.testing.expectEqual(.allow, r.decision);
+}
+
+test "allow bun add local" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "bun add zod" } });
+    try std.testing.expectEqual(.allow, r.decision);
+}
+
+test "block pipx install" {
+    const r = evaluate(.{ .tool_name = "Bash", .tool_input = .{ .command = "pipx install black" } });
+    try std.testing.expectEqual(.deny, r.decision);
+}
